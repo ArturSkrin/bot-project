@@ -48,6 +48,8 @@ jobs:
           context: .
           platforms: ${{ env.OS }}/${{ env.ARCH }}
           push: true
+          provenance: false
+          sbom: false
           tags: ${{ steps.meta.outputs.image }}
 
       - name: Install yq
