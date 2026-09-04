@@ -26,10 +26,12 @@ jobs:
       - name: Compute tag
         id: meta
         run: |
+          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           SHA=$(git rev-parse --short HEAD)
+          echo "repo=$REPO_LC" >> "$GITHUB_OUTPUT"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "tag=${VERSION}-${SHA}" >> "$GITHUB_OUTPUT"
-          echo "image=${REGISTRY}/${REPOSITORY}:${VERSION}-${SHA}-${OS}-${ARCH}" >> "$GITHUB_OUTPUT"
+          echo "image=${REGISTRY}/${REPO_LC}:${VERSION}-${SHA}-${OS}-${ARCH}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -56,7 +58,7 @@ jobs:
       - name: Bump tag in Helm values
         run: |
           yq -i '.image.registry   = strenv(REGISTRY)'   bot-project/values.yaml
-          yq -i '.image.repository = strenv(REPOSITORY)' bot-project/values.yaml
+          yq -i '.image.repository = "${{ steps.meta.outputs.repo }}"' bot-project/values.yaml
           yq -i '.image.tag        = "${{ steps.meta.outputs.tag }}"' bot-project/values.yaml
           yq -i '.image.os         = strenv(OS)'         bot-project/values.yaml
           yq -i '.image.arch       = strenv(ARCH)'       bot-project/values.yaml
