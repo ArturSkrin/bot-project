@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bot-project
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ArturSkrin/bot-project.git
+    targetRevision: develop
+    path: bot-project        # путь к Helm chart в репо
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: bot-project
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,73 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [develop]
+
+env:
+  REGISTRY: ghcr.io
+  REPOSITORY: ${{ github.repository }}   # arturskrin/bot-project
+  OS: linux
+  ARCH: amd64
+  VERSION: v1.0.0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: develop
+
+      - name: Compute tag
+        id: meta
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "tag=${VERSION}-${SHA}" >> "$GITHUB_OUTPUT"
+          echo "image=${REGISTRY}/${REPOSITORY}:${VERSION}-${SHA}-${OS}-${ARCH}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: ${{ env.OS }}/${{ env.ARCH }}
+          push: true
+          tags: ${{ steps.meta.outputs.image }}
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Bump tag in Helm values
+        run: |
+          yq -i '.image.registry   = strenv(REGISTRY)'   bot-project/values.yaml
+          yq -i '.image.repository = strenv(REPOSITORY)' bot-project/values.yaml
+          yq -i '.image.tag        = "${{ steps.meta.outputs.tag }}"' bot-project/values.yaml
+          yq -i '.image.os         = strenv(OS)'         bot-project/values.yaml
+          yq -i '.image.arch       = strenv(ARCH)'       bot-project/values.yaml
+
+      - name: Commit updated values
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add bot-project/values.yaml
+          git commit -m "ci: bump image tag to ${{ steps.meta.outputs.tag }}" || echo "no changes"
+          git push origin develop
+
+      - name: Output image
+        run: echo "${{ steps.meta.outputs.image }}"
